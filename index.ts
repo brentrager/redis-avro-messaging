@@ -3,6 +3,7 @@ import Redis from 'ioredis';
 import * as url from 'url';
 import * as uuid from 'uuid';
 import * as EventEmitter from 'events';
+import * as _ from 'lodash';
 // tslint:disable-next-line:variable-name no-require-imports
 const ContainerLogging = require('@pureconnect/containerlogging');
 // tslint:disable-next-line:variable-name no-require-imports
@@ -13,6 +14,9 @@ const log = new ContainerLogging('redis-avro-messaging', 'RedisAvroMessaging');
 const _nodeId = uuid.v4();
 const AVRO_SCHEMA_REGISTER_CHANNEL = 'avroSchemaRegisterChannel';
 const AVRO_SCHEMA_REGISTER_REQUEST_CHANNEL = 'avroSchemaRegisterRequesthannel';
+const REQUEST_CHANNEL = 'requestChannel';
+const RESPONSE_CHANNEL = 'responseChannel';
+const NOTIFICATION_CHANNEL = 'notificationChannel';
 
 export class AvroProducer {
     constructor(private schema: any, private nodeId: string, private redisPub: Redis.Redis) {
@@ -22,6 +26,66 @@ export class AvroProducer {
 interface Message {
     nodeId: string;
     message: any;
+}
+
+class RedisPubSub extends EventEmitter {
+    /*
+     * This serves as the communication point for Redis Pub/Sub. It maintains two Redis connections
+     * as publishing and subscribing cannot be done on one connection. It sends messags and incoming messages
+     * are emitted as events.
+     */
+    private redisPub: Redis.Redis;
+    private redisSub: Redis.Redis;
+
+    constructor(redisHost: string, redisPort: number) {
+        super();
+
+        try {
+            this.redisPub = new Redis(redisPort, redisHost);
+            this.redisSub = new Redis(redisPort, redisHost, { autoResubscribe: true });
+        } catch (error) {
+            log.error(`Unable to connect to Redis URL: '${redisHost}:${redisPort}'.`);
+            throw error;
+        }
+
+        this.redisSub.on('message', (channel, message) => {
+            this.emit('message', { channel, message: JSON.parse(message) });
+        });
+    }
+
+    async subscribe(...channels: Array<string>): Promise<void> {
+        return new Promise<void>((resolve, reject) => {
+            this.redisSub.subscribe(channels, (err: any, count: any) => {
+                if (err) {
+                    log.error(`Error subscribing to channels: ${channels}. Error: ${err}`);
+
+                    return reject(err);
+                }
+                log.verbose(`Subscribed to channels: ${channels}.`);
+
+                return resolve();
+            });
+        });
+    }
+
+    unsubscribe(...channels: Array<string>): void {
+        for (const channel of channels) {
+            this.redisSub.unsubscribe(channel);
+        }
+    }
+
+    async publish(channel: string, message: any): Promise<void> {
+        try {
+            const nodeMessage: Message = {
+                nodeId: _nodeId,
+                message
+            };
+            await this.redisPub.publish(channel, JSON.stringify(nodeMessage));
+        } catch (error) {
+            log.error(`Error publishing on channel ${channel}`);
+            log.verbose(`Error publishing on channel ${channel}: ${message}`);
+        }
+    }
 }
 
 class AvroSchemaCache {
@@ -74,6 +138,10 @@ class AvroSchemaCacheManager extends EventEmitter {
                 this.emit('schemasRegistered', { nodeId, schemas });
             }
         });
+
+        this.redisPubSub.subscribe(AVRO_SCHEMA_REGISTER_CHANNEL).then(() => {
+            log.verbose('Listening for schema registrations.');
+        });
     }
 
     setSchemas(nodeId: string, schemas: Array<any>): void {
@@ -108,61 +176,41 @@ class AvroSchemaCacheManager extends EventEmitter {
     }
 }
 
-class RedisPubSub extends EventEmitter {
+class AvroSchemasProducedManager {
     /*
-     * This serves as the communication point for Redis Pub/Sub. It maintains two Redis connections
-     * as publishing and subscribing cannot be done on one connection. It sends messags and incoming messages
-     * are emitted as events.
+     * This class keeps track of all the schemas for which this microservice produces messages. This could be
+     * either produced notifications or requests made to other microservies and the expected responses.
      */
-    private redisPub: Redis.Redis;
-    private redisSub: Redis.Redis;
+    private schemasProduced: Array<any>;
 
-    constructor(redisHost: string, redisPort: number) {
-        super();
-
-        try {
-            this.redisPub = new Redis(redisPort, redisHost);
-            this.redisSub = new Redis(redisPort, redisHost, { autoResubscribe: true });
-        } catch (error) {
-            log.error(`Unable to connect to Redis URL: '${redisHost}:${redisPort}'.`);
-            throw error;
-        }
-
-        this.redisSub.on('message', (channel, message) => {
-            this.emit('message',  { channel, message: JSON.parse(message) });
-        });
+    private async notifySchemasProduced(): Promise<void> {
+        return this.redisPubSub.publish(AVRO_SCHEMA_REGISTER_CHANNEL, this.schemasProduced);
     }
 
-    async subscribe(...channels: Array<string>): Promise<void> {
-        return new Promise<void>((resolve, reject) => {
-            this.redisSub.subscribe(channels, (err: any, count: any) => {
-                if (err) {
-                    log.error(`Error subscribing to channels: ${channels}. Error: ${err}`);
+    constructor(private redisPubSub: RedisPubSub) {
+        this.schemasProduced = [];
 
-                    return reject(err);
+        this.redisPubSub.on('message', async channelMessage => {
+            if (channelMessage.channel === AVRO_SCHEMA_REGISTER_REQUEST_CHANNEL) {
+                const nodeId = channelMessage.message;
+                // If it's me, send my schemas out.
+                if (nodeId === _nodeId) {
+                    await this.notifySchemasProduced();
                 }
-                log.verbose(`Subscribed to channels: ${channels}.`);
+            }
+        });
 
-                return resolve();
-            });
+        this.redisPubSub.subscribe(AVRO_SCHEMA_REGISTER_REQUEST_CHANNEL).then(() => {
+            log.verbose('Listening for schema register requests.');
         });
     }
+    async addProducedSchemas(...schemas: Array<any>): Promise<Array<number>> {
+        this.schemasProduced.concat(schemas);
 
-    unsubscribe(...channels: Array<string>): void {
-        this.redisSub.unsubscribe(channels);
-    }
+        await this.notifySchemasProduced();
 
-    async publish(channel: string, message: any): Promise<void> {
-        try {
-            const nodeMessage: Message = {
-                nodeId: _nodeId,
-                message
-            };
-            await this.redisPub.publish(channel, JSON.stringify(nodeMessage));
-        } catch (error) {
-            log.error(`Error publishing on channel ${channel}`);
-            log.verbose(`Error publishing on channel ${channel}: ${message}`);
-        }
+        // Return an array of schema IDs that represent the newly added schemas
+        return _.range(this.schemasProduced.length - schemas.length, this.schemasProduced.length - 1);
     }
 }
 
