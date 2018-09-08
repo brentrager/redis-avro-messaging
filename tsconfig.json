@@ -1,0 +1,17 @@
+{
+    "compilerOptions": {
+        "target": "es6",
+        "noImplicitAny": true,
+        "noUnusedLocals": false,
+        "strictNullChecks": true,
+        "noUnusedParameters": false,
+        "allowSyntheticDefaultImports": true,
+        "moduleResolution": "node",
+        "sourceMap": true,
+        "outDir": "dist",
+    },
+    "include": [
+        "index.ts",
+        "lib/**/*"
+    ]
+}

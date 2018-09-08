@@ -1,0 +1,27 @@
+{
+  "name": "redis-avro-messaging",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tslint --project tsconfig.json --config tslint.json && tsc",
+    "start": "node dist/index.js",
+    "tsstart": "ts-node index.ts",
+    "debug": "node --inspect -r ts-node/register src/index.ts",
+    "lint": "tslint --project tsconfig.json --config tslint.json"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@pureconnect/containerlogging": "^1.0.0",
+    "@pureconnect/icavrolib": "^1.0.0",
+    "@types/ioredis": "^4.0.1",
+    "@types/node": "^10.9.4",
+    "@types/uuid": "^3.4.4",
+    "avsc": "^5.4.3",
+    "ioredis": "^4.0.0",
+    "ts-node": "^7.0.1",
+    "typescript": "^3.0.3",
+    "uuid": "^3.3.2"
+  }
+}
