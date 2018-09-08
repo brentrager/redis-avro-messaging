@@ -18,14 +18,38 @@ const REQUEST_CHANNEL = 'requestChannel';
 const RESPONSE_CHANNEL = 'responseChannel';
 const NOTIFICATION_CHANNEL = 'notificationChannel';
 
-export class AvroProducer {
-    constructor(private schema: any, private nodeId: string, private redisPub: Redis.Redis) {
-    }
-}
-
 interface Message {
     nodeId: string;
     message: any;
+}
+
+class ExpiringPromise {
+    /*
+     * Meant to be used as ExpiringPromise.waitWithTimeout(promise, timeoutMs).
+     *
+     * Constructor is not meant to be called directly.
+     */
+    private timeoutPromise: Promise<void>;
+
+    constructor(private promise: Promise<any>, private timeoutMs: number = 10000) {
+        this.timeoutPromise = new Promise((_resolve, reject) => {
+            setTimeout(() => {
+                const error = new Error('Promise timed out.');
+
+                return reject(error);
+            }, timeoutMs);
+        });
+    }
+
+    async wait(): Promise<any> {
+        return Promise.race([this.promise, this.timeoutPromise]);
+    }
+
+    static async waitWithTimeout(promise: Promise<any>, timeoutMs: number = 10000): Promise<any> {
+        const expiringPromise = new ExpiringPromise(promise, timeoutMs);
+
+        return expiringPromise.wait();
+    }
 }
 
 class RedisPubSub extends EventEmitter {
@@ -152,24 +176,28 @@ class AvroSchemaCacheManager extends EventEmitter {
         let result = this.schemaCache.getSchema(nodeId, schemaId);
 
         if (!result) {
-            result = await new Promise(async (resolve, reject) => {
-                this.on('schemasRegistered', schemasRegistered => {
-                    if (schemasRegistered.nodeId === nodeId) {
-                        const innerResult = this.schemaCache.getSchema(nodeId, schemaId);
+            try {
+                result = await ExpiringPromise.waitWithTimeout(new Promise(async (resolve, reject) => {
+                    this.on('schemasRegistered', schemasRegistered => {
+                        if (schemasRegistered.nodeId === nodeId) {
+                            const innerResult = this.schemaCache.getSchema(nodeId, schemaId);
 
-                        if (!result) {
-                            const error = new Error(`Schema ${schemaId} does not exist for node ${nodeId}.`);
-                            log.error(error);
+                            if (!result) {
+                                const error = new Error(`Schema ${schemaId} does not exist for node ${nodeId}.`);
+                                log.error(error);
 
-                            return reject(error);
+                                return reject(error);
+                            }
+
+                            return resolve(innerResult);
                         }
+                    });
 
-                        return resolve(innerResult);
-                    }
-                });
-
-                await this.redisPubSub.publish(AVRO_SCHEMA_REGISTER_REQUEST_CHANNEL, nodeId);
-            });
+                    await this.redisPubSub.publish(AVRO_SCHEMA_REGISTER_REQUEST_CHANNEL, nodeId);
+                }));
+            } catch (error) {
+                log.error(`Error getting schema ${schemaId} for node ${nodeId}.`);
+            }
         }
 
         return result;
