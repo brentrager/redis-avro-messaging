@@ -12,13 +12,29 @@ const log = new ContainerLogging('redis-avro-messaging', 'RedisAvroMessaging');
 const _nodeId = uuid.v4();
 const AVRO_SCHEMA_REGISTER_CHANNEL = 'avroSchemaRegisterChannel';
 const AVRO_SCHEMA_REGISTER_REQUEST_CHANNEL = 'avroSchemaRegisterRequesthannel';
-const REQUEST_CHANNEL = 'requestChannel';
-const RESPONSE_CHANNEL = 'responseChannel';
-const NOTIFICATION_CHANNEL = 'notificationChannel';
+const AVRO_REQUEST_CHANNEL = 'avroRequestChannel';
+const AVRO_RESPONSE_CHANNEL = 'avroResponseChannel';
+const AVRO_NOTIFICATION_CHANNEL = 'avroNotificationChannel';
 
 interface Message {
     nodeId: string;
     message: any;
+}
+
+interface ChannelMessage {
+    channel: string;
+    message: Message;
+}
+
+export interface Notification {
+    topic: string;
+    key: any;
+    value: any;
+}
+
+export interface Request {
+    request: any;
+    response: any;
 }
 
 class ExpiringPromise {
@@ -63,6 +79,40 @@ class AvroSchemaWithId {
     }
 }
 
+class NotificationSchemasWithIds {
+    constructor(private _schema: Notification, private _key: AvroSchemaWithId, private _value: AvroSchemaWithId) {
+    }
+
+    schema(): Notification {
+        return this._schema;
+    }
+
+    key(): AvroSchemaWithId {
+        return this._key;
+    }
+
+    value(): AvroSchemaWithId {
+        return this._value;
+    }
+}
+
+class RequestSchemasWithIds {
+    constructor(private _schema: Request, private _request: AvroSchemaWithId, private _response: AvroSchemaWithId) {
+    }
+
+    schema(): Request {
+        return this._schema;
+    }
+
+    request(): AvroSchemaWithId {
+        return this._request;
+    }
+
+    response(): AvroSchemaWithId {
+        return this._response;
+    }
+}
+
 class NotificationProtocol {
     private protocolVersion = 0;
     private offsets = {
@@ -78,7 +128,7 @@ class NotificationProtocol {
      * Build a payload (either a key or value for a notification).  Returns a Buffer containing the
      * payload.
      */
-    buildPayload(schemaId: number, avroType: any, data: any): Buffer {
+    buildPayload(schemaId: number, avroType: any, data: any): string {
         const dataLen = icAvroLib.getAvroLength(avroType, data);
         const payload = Buffer.allocUnsafe(this.offsets.data + dataLen);
 
@@ -86,7 +136,7 @@ class NotificationProtocol {
         payload.writeUInt32BE(schemaId, this.offsets.schemaId);
         icAvroLib.avroSerialize(avroType, payload, this.offsets.data, dataLen, data);
 
-        return payload;
+        return payload.toString('base64');
     }
 
     /**
@@ -99,7 +149,9 @@ class NotificationProtocol {
      * @param schemaCache - A SchemaRegistryCache used to retrieve the sender's schema
      * @return Promise - an AvroReceivePayload that can be used to deserialize the data
      */
-    async parsePayload(payload: Buffer, nodeId: string): Promise<Buffer> {
+    async parsePayload(payloadString: string, nodeId: string): Promise<any> {
+        const payload = Buffer.from(payloadString, 'base64');
+
         if (!payload) {
             throw new Error('Cannot parse null payload');
         }
@@ -148,7 +200,11 @@ class RedisPubSub extends EventEmitter {
         }
 
         this.redisSub.on('message', (channel, message) => {
-            this.emit('message', { channel, message: JSON.parse(message) });
+            const channelMessage: ChannelMessage = {
+                channel,
+                message: JSON.parse(message)
+            };
+            this.emit('message', channelMessage);
         });
     }
 
@@ -228,11 +284,11 @@ class AvroSchemaCacheManager extends EventEmitter {
         super();
         this.schemaCache = new AvroSchemaCache();
 
-        this.redisPubSub.on('message', channelMessage => {
+        this.redisPubSub.on('message', (channelMessage: ChannelMessage) => {
             if (channelMessage.channel === AVRO_SCHEMA_REGISTER_CHANNEL) {
                 const message = channelMessage.message;
                 const nodeId = message.nodeId;
-                const schemas = message.message as Array<any>;
+                const schemas = message.message.schemas as Array<any>;
                 this.schemaCache.setSchemas(nodeId, schemas);
                 this.emit('schemasRegistered', { nodeId, schemas });
             }
@@ -240,6 +296,9 @@ class AvroSchemaCacheManager extends EventEmitter {
 
         this.redisPubSub.subscribe(AVRO_SCHEMA_REGISTER_CHANNEL).then(() => {
             log.verbose('Listening for schema registrations.');
+        }).catch(error => {
+            log.error(`Error listening for schema registrations: ${error}`);
+            throw error;
         });
     }
 
@@ -268,10 +327,11 @@ class AvroSchemaCacheManager extends EventEmitter {
                         }
                     });
 
-                    await this.redisPubSub.publish(AVRO_SCHEMA_REGISTER_REQUEST_CHANNEL, nodeId);
+                    await this.redisPubSub.publish(AVRO_SCHEMA_REGISTER_REQUEST_CHANNEL, { nodeId });
                 }));
             } catch (error) {
                 log.error(`Error getting schema ${schemaId} for node ${nodeId}.`);
+                throw error;
             }
         }
 
@@ -288,7 +348,7 @@ class AvroSchemasProducedManager {
 
     private async notifySchemasProduced(): Promise<Array<any>> {
         const schemas = this.schemasProduced.map(x => x.schema());
-        await this.redisPubSub.publish(AVRO_SCHEMA_REGISTER_CHANNEL, schemas);
+        await this.redisPubSub.publish(AVRO_SCHEMA_REGISTER_CHANNEL, { schemas });
 
         log.verbose(`Notified other services of ${schemas.length} schemas produced.`);
 
@@ -298,9 +358,9 @@ class AvroSchemasProducedManager {
     constructor(private redisPubSub: RedisPubSub) {
         this.schemasProduced = [];
 
-        this.redisPubSub.on('message', async channelMessage => {
+        this.redisPubSub.on('message', async (channelMessage: ChannelMessage) => {
             if (channelMessage.channel === AVRO_SCHEMA_REGISTER_REQUEST_CHANNEL) {
-                const nodeId = channelMessage.message;
+                const nodeId = channelMessage.message.message.nodeId;
                 // If it's me, send my schemas out.
                 if (nodeId === _nodeId) {
                     await this.notifySchemasProduced();
@@ -310,10 +370,13 @@ class AvroSchemasProducedManager {
 
         this.redisPubSub.subscribe(AVRO_SCHEMA_REGISTER_REQUEST_CHANNEL).then(() => {
             log.verbose('Listening for schema register requests.');
+        }).catch(error => {
+            log.error(`Error listening for schema register requests: ${error}`);
+            throw error;
         });
     }
 
-    async addProducedSchemas(...schemas: Array<any>): Promise<Array<AvroSchemaWithId>> {
+    private async addProducedSchema(...schemas: Array<any>): Promise<Array<AvroSchemaWithId>> {
         const existingSchemasWithId = [];
         const schemasWithId = [];
         let index = this.schemasProduced.length;
@@ -335,38 +398,137 @@ class AvroSchemasProducedManager {
         // Return an array of schema IDs that represent the newly added schemas
         return existingSchemasWithId.concat(schemasWithId);
     }
-}
 
-class AvroProducer {
-    private schemaWithId: AvroSchemaWithId;
-    private readyPromise: Promise<void>;
+    async addNotificationSchema(...schemas: Array<Notification>): Promise<Array<NotificationSchemasWithIds>> {
+        const notificationSchemasWithIds = [] as Array<NotificationSchemasWithIds>;
+        const schemaTypes = [] as Array<any>;
+        for (const notification of schemas) {
+            schemaTypes.push(notification.key);
+            schemaTypes.push(notification.value);
+        }
 
-    constructor(private redisPubSub: RedisPubSub, private avroSchemaCacheManager: AvroSchemasProducedManager, schema: any) {
-        this.readyPromise = new Promise(async (resolve, reject) => {
-            this.schemaWithId = (await this.avroSchemaCacheManager.addProducedSchemas(schema))[0];
-            resolve();
-        });
+        const schemasWithIds = await this.addProducedSchema(schemaTypes);
+
+        let index = 0;
+        for (const notification of schemas) {
+            notificationSchemasWithIds.push(new NotificationSchemasWithIds(notification, schemasWithIds[index], schemasWithIds[index + 1]));
+            index += 2;
+        }
+
+        return notificationSchemasWithIds;
     }
 
-    async produce(message: any): Promise<void> {
-        await this.readyPromise;
+    async addRequestSchema(...schemas: Array<Request>): Promise<Array<RequestSchemasWithIds>> {
+        const requestSchemasWithIds = [] as Array<RequestSchemasWithIds>;
+        const schemaTypes = [] as Array<any>;
+        for (const request of schemas) {
+            schemaTypes.push(request.request);
+            schemaTypes.push(request.response);
+        }
+
+        const schemasWithIds = await this.addProducedSchema(schemaTypes);
+
+        let index = 0;
+        for (const request of schemas) {
+            requestSchemasWithIds.push(new RequestSchemasWithIds(request, schemasWithIds[index], schemasWithIds[index + 1]));
+            index += 2;
+        }
+
+        return requestSchemasWithIds;
+    }
+}
+
+export class AvroNotificationProducer {
+    private initialized = false;
+    private notificationSchemasWithId: NotificationSchemasWithIds;
+
+    constructor(private redisPubSub: RedisPubSub, private avroSchemaCacheManager: AvroSchemasProducedManager,
+                private notificationProtocol: NotificationProtocol, private notificationSchema: Notification) {
+    }
+
+    async initialize(): Promise<void> {
+        if (!this.initialized) {
+            this.notificationSchemasWithId = (await this.avroSchemaCacheManager.addNotificationSchema(this.notificationSchema))[0];
+            this.initialized = true;
+        }
+    }
+
+    async produce(notifcation: Notification): Promise<void> {
+        const keyPayload = this.notificationProtocol.buildPayload(this.notificationSchemasWithId.key().id(),
+            this.notificationSchemasWithId.key().schema(), notifcation.key);
+        const valuePayload = this.notificationProtocol.buildPayload(this.notificationSchemasWithId.value().id(),
+            this.notificationSchemasWithId.value().schema(), notifcation.value);
+
+        const notificationPayload: Notification = {
+            topic: this.notificationSchemasWithId.schema().topic,
+            key: keyPayload,
+            value: valuePayload
+        };
+
+        await this.redisPubSub.publish(AVRO_NOTIFICATION_CHANNEL, notificationPayload);
+    }
+}
+
+export class AvroNotificationConsumer extends EventEmitter {
+    private initialized = false;
+    private notificationSchemasWithId: NotificationSchemasWithIds;
+
+    constructor(private redisPubSub: RedisPubSub, private avroSchemaCacheManager: AvroSchemasProducedManager,
+                private notificationProtocol: NotificationProtocol, private notificationSchema: Notification) {
+        super();
+    }
+
+    async initialize(): Promise<void> {
+        if (!this.initialized) {
+            this.notificationSchemasWithId = (await this.avroSchemaCacheManager.addNotificationSchema(this.notificationSchema))[0];
+
+            this.redisPubSub.on('message', async (channelMessage: ChannelMessage) => {
+                if (channelMessage.channel === AVRO_NOTIFICATION_CHANNEL) {
+                    const nodeId = channelMessage.message.nodeId;
+                    const notificationPayload = channelMessage.message.message as Notification;
+
+                    const keyPayload = await this.notificationProtocol.parsePayload(notificationPayload.key, nodeId);
+                    const valuePayload = await this.notificationProtocol.parsePayload(notificationPayload.value, nodeId);
+
+                    const notification: Notification = {
+                        topic: notificationPayload.topic,
+                        key: keyPayload.deserialize(this.notificationSchema.key),
+                        value: valuePayload.deserialize(this.notificationSchema.value)
+                    };
+
+                    this.emit('notification', notification.key, notification.value);
+                }
+            });
+
+            await this.redisPubSub.subscribe(AVRO_NOTIFICATION_CHANNEL);
+
+            this.initialized = true;
+        }
     }
 }
 
 export class RedisAvroMessaging {
     private redisPubSub: RedisPubSub;
     private avroSchemaCacheManager: AvroSchemaCacheManager;
+    private avroSchemasProducedManager: AvroSchemasProducedManager;
+    private notificationProtocol: NotificationProtocol;
 
     constructor(redisHost: string, redisPort: number) {
         this.redisPubSub = new RedisPubSub(redisHost, redisPort);
         this.avroSchemaCacheManager = new AvroSchemaCacheManager(this.redisPubSub);
+        this.avroSchemasProducedManager = new AvroSchemasProducedManager(this.redisPubSub);
+        this.notificationProtocol = new NotificationProtocol(this.avroSchemaCacheManager);
     }
 
-    async createAvroProducer(schema: any): Promise<void> {
+    async createAvroNotificationProducer(notificationSchema: Notification): Promise<AvroNotificationProducer> {
+        const avroNotificationProducer = new AvroNotificationProducer(this.redisPubSub, this.avroSchemasProducedManager,
+            this.notificationProtocol, notificationSchema);
+        await avroNotificationProducer.initialize();
 
+        return avroNotificationProducer;
     }
 
-    async createAvroConsumer(): Promise<void> {
+    async createAvroNotificationConsumer(): Promise<void> {
 
     }
 
