@@ -442,13 +442,13 @@ export class AvroNotificationProducer {
     private initialized = false;
     private notificationSchemasWithId: NotificationSchemasWithIds;
 
-    constructor(private redisPubSub: RedisPubSub, private avroSchemaCacheManager: AvroSchemasProducedManager,
+    constructor(private redisPubSub: RedisPubSub, private avroSchemasProducedManager: AvroSchemasProducedManager,
                 private notificationProtocol: NotificationProtocol, private notificationSchema: Notification) {
     }
 
     async initialize(): Promise<void> {
         if (!this.initialized) {
-            this.notificationSchemasWithId = (await this.avroSchemaCacheManager.addNotificationSchema(this.notificationSchema))[0];
+            this.notificationSchemasWithId = (await this.avroSchemasProducedManager.addNotificationSchema(this.notificationSchema))[0];
             this.initialized = true;
         }
     }
@@ -473,15 +473,12 @@ export class AvroNotificationConsumer extends EventEmitter {
     private initialized = false;
     private notificationSchemasWithId: NotificationSchemasWithIds;
 
-    constructor(private redisPubSub: RedisPubSub, private avroSchemaCacheManager: AvroSchemasProducedManager,
-                private notificationProtocol: NotificationProtocol, private notificationSchema: Notification) {
+    constructor(private redisPubSub: RedisPubSub, private notificationProtocol: NotificationProtocol, private notificationSchema: Notification) {
         super();
     }
 
     async initialize(): Promise<void> {
         if (!this.initialized) {
-            this.notificationSchemasWithId = (await this.avroSchemaCacheManager.addNotificationSchema(this.notificationSchema))[0];
-
             this.redisPubSub.on('message', async (channelMessage: ChannelMessage) => {
                 if (channelMessage.channel === AVRO_NOTIFICATION_CHANNEL) {
                     const nodeId = channelMessage.message.nodeId;
@@ -528,8 +525,11 @@ export class RedisAvroMessaging {
         return avroNotificationProducer;
     }
 
-    async createAvroNotificationConsumer(): Promise<void> {
+    async createAvroNotificationConsumer(notificationSchema: Notification): Promise<AvroNotificationConsumer> {
+        const avroNotificationConsumer = new AvroNotificationConsumer(this.redisPubSub, this.notificationProtocol, notificationSchema);
+        await avroNotificationConsumer.initialize();
 
+        return avroNotificationConsumer;
     }
 
     async reateAvroRequestClient(): Promise<void> {
