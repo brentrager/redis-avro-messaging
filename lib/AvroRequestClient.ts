@@ -1,7 +1,4 @@
-import { EventEmitter } from 'events';
-import AvroNotificationSchemasWithIds from './AvroNotificationSchemasWithIds';
 import RedisPubSub from './RedisPubSub';
-import AvroNotificationProtocol from './AvroNotificationProtocol';
 import { AVRO_REQUEST_CHANNEL, AVRO_RESPONSE_CHANNEL, NODE_ID } from './constants';
 import { ChannelMessage, Request, Message } from './types';
 import AvroRequestProtocol from './AvroRequestProtocol';
@@ -27,9 +24,8 @@ interface LocalSchemasWithIds {
     responseError: AvroSchemaWithId;
 }
 
-export default class AvroRequestClient extends EventEmitter {
+export default class AvroRequestClient {
     private initialized = false;
-    private notificationSchemasWithId: AvroNotificationSchemasWithIds;
     private localSchemasWithIds: LocalSchemasWithIds;
     private responseTopic: string;
 
@@ -45,7 +41,6 @@ export default class AvroRequestClient extends EventEmitter {
 
     constructor(private redisPubSub: RedisPubSub, private avroSchemasProducedManager: AvroSchemasProducedManager,
                 private requestProtocol: AvroRequestProtocol) {
-        super();
         this.responseTopic = NODE_ID;
     }
 
@@ -64,7 +59,7 @@ export default class AvroRequestClient extends EventEmitter {
                         const nodeId = channelMessage.message.nodeId;
                         const requestPayload = channelMessage.message.message as Request;
 
-                        if (this.responseTopic === requestPayload.topic) {
+                        if (this.responseTopic === requestPayload.responseTopic) {
                             if (!requestPayload.response || !requestPayload.response.length) {
                                 log.info(`Received ping on ${this.responseTopic}`);
 
@@ -92,7 +87,7 @@ export default class AvroRequestClient extends EventEmitter {
                         }
                     }
                 } catch (error) {
-                    log.error(`Error getting message: ${error}`);
+                    log.error(`Error getting message on ${this.responseTopic}: ${error}`);
                 }
             });
 
@@ -183,7 +178,7 @@ export default class AvroRequestClient extends EventEmitter {
                     ${requestType.getName()} to ${requestTopic} with correlation ID ${correlationId}`);
                 // Send the request
                 const request: Request = {
-                    topic: requestTopic,
+                    requestTopic,
                     request: messageBufString
                 };
 
