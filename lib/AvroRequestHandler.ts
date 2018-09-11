@@ -108,8 +108,12 @@ export class AvroRequestHandler extends EventEmitter {
                                 with type ${payloads.bodyPayload.getSchemaName()} and correlation ID ${header.correlationId}`);
 
                             // Define the response function
-                            const respond = (bodyOrError: any, successSchema: any) => {
-                                this.sendResponse(bodyOrError, header, successSchema);
+                            const respond = async (bodyOrError: any, successSchema: any) => {
+                                try {
+                                    await this.sendResponse(bodyOrError, header, successSchema);
+                                } catch (error) {
+                                    log.error(`Error calling response function: ${error}`);
+                                }
                             };
 
                             /**
@@ -180,7 +184,7 @@ export class AvroRequestHandler extends EventEmitter {
             responseTopic: requestHeaderData.responseTopic,
             response: messageBufString
         };
-        this.redisPubSub.publish(AVRO_RESPONSE_CHANNEL, response);
+        await this.redisPubSub.publish(AVRO_RESPONSE_CHANNEL, response);
     }
 
     /**
@@ -219,7 +223,7 @@ export class AvroRequestHandler extends EventEmitter {
                 responseTopic: requestHeaderData.responseTopic,
                 response: messageBufString
             };
-            this.redisPubSub.publish(AVRO_RESPONSE_CHANNEL, response);
+            await this.redisPubSub.publish(AVRO_RESPONSE_CHANNEL, response);
         } catch (error) {
             // If we weren't able to send the successful result (such as if the result didn't
             // conform to the schema, or if the schema couldn't be registered, etc.), send an
