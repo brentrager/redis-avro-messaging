@@ -1,0 +1,10 @@
+{
+    "name": "responseHeader",
+    "type": "record",
+    "fields": [
+        {
+            "name": "correlationId",
+            "type": "string"
+        }
+    ]
+}

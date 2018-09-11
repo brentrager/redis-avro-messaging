@@ -35,8 +35,8 @@ export default class AvroNotificationProtocol {
      *
      * If the protocol version is not supported, the promise is rejected.
      *
-     * @param payload - A Buffer holding the key or value payload from the notification
-     * @param schemaCache - A SchemaRegistryCache used to retrieve the sender's schema
+     * @param payloadString - A base64 string holding the key or value payload from the notification
+     * @param nodeId - The node ID of the writer.
      * @return Promise - an AvroReceivePayload that can be used to deserialize the data
      */
     async parsePayload(payloadString: string, nodeId: string): Promise<any> {

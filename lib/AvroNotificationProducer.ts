@@ -5,7 +5,7 @@ import AvroNotificationProtocol from './AvroNotificationProtocol';
 import { Notification } from './types';
 import { AVRO_NOTIFICATION_CHANNEL } from './constants';
 
-export class AvroNotificationProducer {
+export default class AvroNotificationProducer {
     private initialized = false;
     private notificationSchemasWithId: AvroNotificationSchemasWithIds;
 

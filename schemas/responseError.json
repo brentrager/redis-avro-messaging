@@ -1,0 +1,10 @@
+{
+    "name": "kafkarequestlib_responseErrorBody",
+    "type": "record",
+    "fields": [
+        {
+            "name": "error",
+            "type": "string"
+        }
+    ]
+}

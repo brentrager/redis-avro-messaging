@@ -2,21 +2,25 @@ import RedisPubSub from './RedisPubSub';
 import AvroSchemaCacheManager from './AvroSchemaCacheManager';
 import AvroSchemasProducedManager from './AvroSchemasProducedManager';
 import AvroNotificationProtocol from './AvroNotificationProtocol';
-import { AvroNotificationProducer } from './AvroNotificationProducer';
+import AvroNotificationProducer from './AvroNotificationProducer';
 import { Notification, Request } from './types';
 import AvroNotificationConsumer from './AvroNotificationConsumer';
+import AvroRequestClient from './AvroRequestClient';
+import AvroRequestProtocol from './AvroRequestProtocol';
 
 export default class RedisAvroMessaging {
     private redisPubSub: RedisPubSub;
     private avroSchemaCacheManager: AvroSchemaCacheManager;
     private avroSchemasProducedManager: AvroSchemasProducedManager;
     private notificationProtocol: AvroNotificationProtocol;
+    private requestProtocol: AvroRequestProtocol;
 
     constructor(redisHost: string, redisPort: number) {
         this.redisPubSub = new RedisPubSub(redisHost, redisPort);
         this.avroSchemaCacheManager = new AvroSchemaCacheManager(this.redisPubSub);
         this.avroSchemasProducedManager = new AvroSchemasProducedManager(this.redisPubSub);
         this.notificationProtocol = new AvroNotificationProtocol(this.avroSchemaCacheManager);
+        this.requestProtocol = new AvroRequestProtocol(this.avroSchemaCacheManager);
     }
 
     async createAvroNotificationProducer(notificationSchema: Notification): Promise<AvroNotificationProducer> {
@@ -34,8 +38,11 @@ export default class RedisAvroMessaging {
         return avroNotificationConsumer;
     }
 
-    async createAvroRequestClient(): Promise<void> {
+    async createAvroRequestClient(): Promise<AvroRequestClient> {
+        const avroRequestClient = new AvroRequestClient(this.redisPubSub, this.avroSchemasProducedManager, this.requestProtocol);
+        await avroRequestClient.initialize();
 
+        return avroRequestClient;
     }
 
     async createAvroRequestHandler(): Promise<void> {

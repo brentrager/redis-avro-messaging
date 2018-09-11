@@ -47,7 +47,7 @@ export default class AvroSchemasProducedManager {
         });
     }
 
-    private async addProducedSchema(...schemas: Array<any>): Promise<Array<AvroSchemaWithId>> {
+    async addProducedSchema(...schemas: Array<any>): Promise<Array<AvroSchemaWithId>> {
         const existingSchemasWithId = [];
         const schemasWithId = [];
         let index = this.schemasProduced.length;

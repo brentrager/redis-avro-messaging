@@ -15,6 +15,7 @@ export interface Notification {
 }
 
 export interface Request {
-    request: any;
-    response: any;
+    topic: string;
+    request?: any;
+    response?: any;
 }
