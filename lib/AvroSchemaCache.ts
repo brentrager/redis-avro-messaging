@@ -15,7 +15,7 @@ export default class AvroSchemaCache {
 
     setSchemas(nodeId: string, schemas: Array<any>): void {
         this.cache.set(nodeId, schemas.reduce((result, schema, index) => {
-            result.set(index, new AvroSchemaWithId(index, schema));
+            return result.set(index, new AvroSchemaWithId(index, schema));
         }, new Map()));
     }
 

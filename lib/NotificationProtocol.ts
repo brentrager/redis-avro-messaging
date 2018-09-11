@@ -18,12 +18,13 @@ export default class NotificationProtocol {
      * payload.
      */
     buildPayload(schemaId: number, avroType: any, data: any): string {
-        const dataLen = icAvroLib.getAvroLength(avroType, data);
+        const avroTypeParsed = icAvroLib.getParsedType(avroType);
+        const dataLen = icAvroLib.getAvroLength(avroTypeParsed, data);
         const payload = Buffer.allocUnsafe(this.offsets.data + dataLen);
 
         payload.writeUInt8(this.protocolVersion, this.offsets.protocolVersion);
         payload.writeUInt32BE(schemaId, this.offsets.schemaId);
-        icAvroLib.avroSerialize(avroType, payload, this.offsets.data, dataLen, data);
+        icAvroLib.avroSerialize(avroTypeParsed, payload, this.offsets.data, dataLen, data);
 
         return payload.toString('base64');
     }
@@ -62,7 +63,7 @@ export default class NotificationProtocol {
 
         const schema = await this.avroSchemaCacheManager.getSchema(nodeId, schemaId);
 
-        const dataType = icAvroLib.getParsedType(schema);
+        const dataType = icAvroLib.getParsedType(schema.schema());
 
         return new icAvroLib.AvroReceivePayload(dataBuf, dataType);
     }

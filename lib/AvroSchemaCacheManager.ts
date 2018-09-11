@@ -1,4 +1,4 @@
-import * as EventEmitter from 'events';
+import { EventEmitter } from 'events';
 import AvroSchemaCache from './AvroSchemaCache';
 import RedisPubSub from './RedisPubSub';
 import ExpiringPromise from './ExpiringPromise';

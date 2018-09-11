@@ -2,7 +2,7 @@ import AvroSchemaWithId from './AvroSchemaWithId';
 import { AVRO_SCHEMA_REGISTER_CHANNEL, AVRO_SCHEMA_REGISTER_REQUEST_CHANNEL, NODE_ID } from './constants';
 import RedisPubSub from './RedisPubSub';
 import { ChannelMessage, Notification, Request } from './types';
-import _ from 'lodash';
+import * as _ from 'lodash';
 import NotificationSchemasWithIds from './NotificationSchemasWithIds';
 import RequestSchemasWithIds from './RequestSchemasWithIds';
 // tslint:disable-next-line:variable-name no-require-imports
@@ -62,7 +62,7 @@ export default class AvroSchemasProducedManager {
                 index++;
             }
         }
-        this.schemasProduced.concat(schemas);
+        this.schemasProduced = this.schemasProduced.concat(schemasWithId);
 
         await this.notifySchemasProduced();
 
@@ -78,7 +78,7 @@ export default class AvroSchemasProducedManager {
             schemaTypes.push(notification.value);
         }
 
-        const schemasWithIds = await this.addProducedSchema(schemaTypes);
+        const schemasWithIds = await this.addProducedSchema(...schemaTypes);
 
         let index = 0;
         for (const notification of schemas) {
@@ -97,7 +97,7 @@ export default class AvroSchemasProducedManager {
             schemaTypes.push(request.response);
         }
 
-        const schemasWithIds = await this.addProducedSchema(schemaTypes);
+        const schemasWithIds = await this.addProducedSchema(...schemaTypes);
 
         let index = 0;
         for (const request of schemas) {

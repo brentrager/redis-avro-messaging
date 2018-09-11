@@ -1,4 +1,4 @@
-import EventEmitter from 'events';
+import { EventEmitter } from 'events';
 import * as Redis from 'ioredis';
 import { ChannelMessage, Message } from './types';
 import { NODE_ID } from './constants';
@@ -20,8 +20,8 @@ export default class RedisPubSub extends EventEmitter {
         super();
 
         try {
-            this.redisPub = new Redis(redisPort, redisHost);
-            this.redisSub = new Redis(redisPort, redisHost, { autoResubscribe: true });
+            this.redisPub = new Redis(redisPort, redisHost, { connectionName: `${NODE_ID}-PUB`});
+            this.redisSub = new Redis(redisPort, redisHost, { autoResubscribe: true, connectionName: `${NODE_ID}-SUB` });
         } catch (error) {
             log.error(`Unable to connect to Redis URL: '${redisHost}:${redisPort}'.`);
             throw error;
