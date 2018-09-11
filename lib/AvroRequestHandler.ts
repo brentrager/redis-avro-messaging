@@ -26,18 +26,18 @@ interface LocalSchemasWithIds {
     responseError: AvroSchemaWithId;
 }
 
-interface ServiceObject {
+export interface ServiceObject {
     [func: string]: Function;
 }
 
-interface ServiceDefinition {
+export interface ServiceDefinition {
     requestTopic: string;
     requests: {
         [schemaName: string]: any;
     };
 }
 
-export default class AvroRequestHandler extends EventEmitter {
+export class AvroRequestHandler extends EventEmitter {
     private initialized = false;
     private localSchemasWithIds: LocalSchemasWithIds;
     private requestTopic: string;

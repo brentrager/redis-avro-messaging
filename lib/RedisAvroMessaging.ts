@@ -7,6 +7,7 @@ import { Notification, Request } from './types';
 import AvroNotificationConsumer from './AvroNotificationConsumer';
 import AvroRequestClient from './AvroRequestClient';
 import AvroRequestProtocol from './AvroRequestProtocol';
+import { AvroRequestHandler, ServiceDefinition, ServiceObject } from './AvroRequestHandler';
 
 export default class RedisAvroMessaging {
     private redisPubSub: RedisPubSub;
@@ -45,7 +46,10 @@ export default class RedisAvroMessaging {
         return avroRequestClient;
     }
 
-    async createAvroRequestHandler(): Promise<void> {
+    async createAvroRequestHandler(serviceObj: ServiceObject, serviceDef: ServiceDefinition): Promise<AvroRequestHandler> {
+        const avroRequestHandler = new AvroRequestHandler(this.redisPubSub, this.avroSchemasProducedManager, this.requestProtocol, serviceObj, serviceDef);
+        await avroRequestHandler.initialize();
 
+        return avroRequestHandler;
     }
 }
