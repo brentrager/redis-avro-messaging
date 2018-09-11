@@ -1,7 +1,7 @@
 import AvroSchemaWithId from './AvroSchemaWithId';
 import { Notification } from './types';
 
-export default class NotificationSchemasWithIds {
+export default class AvroNotificationSchemasWithIds {
     constructor(private _schema: Notification, private _key: AvroSchemaWithId, private _value: AvroSchemaWithId) {
     }
 

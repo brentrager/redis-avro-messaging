@@ -1,16 +1,16 @@
-import NotificationSchemasWithIds from './NotificationSchemasWithIds';
+import AvroNotificationSchemasWithIds from './AvroNotificationSchemasWithIds';
 import RedisPubSub from './RedisPubSub';
 import AvroSchemasProducedManager from './AvroSchemasProducedManager';
-import NotificationProtocol from './NotificationProtocol';
+import AvroNotificationProtocol from './AvroNotificationProtocol';
 import { Notification } from './types';
 import { AVRO_NOTIFICATION_CHANNEL } from './constants';
 
 export class AvroNotificationProducer {
     private initialized = false;
-    private notificationSchemasWithId: NotificationSchemasWithIds;
+    private notificationSchemasWithId: AvroNotificationSchemasWithIds;
 
     constructor(private redisPubSub: RedisPubSub, private avroSchemasProducedManager: AvroSchemasProducedManager,
-                private notificationProtocol: NotificationProtocol, private notificationSchema: Notification) {
+                private notificationProtocol: AvroNotificationProtocol, private notificationSchema: Notification) {
     }
 
     async initialize(): Promise<void> {
@@ -20,11 +20,11 @@ export class AvroNotificationProducer {
         }
     }
 
-    async produce(notifcation: Notification): Promise<void> {
+    async produce(notifcationKey: any, notificationVlaue: any): Promise<void> {
         const keyPayload = this.notificationProtocol.buildPayload(this.notificationSchemasWithId.key().id(),
-            this.notificationSchemasWithId.key().schema(), notifcation.key);
+            this.notificationSchemasWithId.key().schema(), notifcationKey);
         const valuePayload = this.notificationProtocol.buildPayload(this.notificationSchemasWithId.value().id(),
-            this.notificationSchemasWithId.value().schema(), notifcation.value);
+            this.notificationSchemasWithId.value().schema(), notificationVlaue);
 
         const notificationPayload: Notification = {
             topic: this.notificationSchemasWithId.schema().topic,

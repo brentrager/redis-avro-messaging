@@ -2,7 +2,7 @@ import AvroSchemaCacheManager from './AvroSchemaCacheManager';
 // tslint:disable-next-line:variable-name no-require-imports
 const icAvroLib = require('@pureconnect/icavrolib');
 
-export default class NotificationProtocol {
+export default class AvroNotificationProtocol {
     private protocolVersion = 0;
     private offsets = {
         protocolVersion: 0,

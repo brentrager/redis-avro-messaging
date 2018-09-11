@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
-import NotificationSchemasWithIds from './NotificationSchemasWithIds';
+import AvroNotificationSchemasWithIds from './AvroNotificationSchemasWithIds';
 import RedisPubSub from './RedisPubSub';
-import NotificationProtocol from './NotificationProtocol';
+import AvroNotificationProtocol from './AvroNotificationProtocol';
 import { AVRO_NOTIFICATION_CHANNEL } from './constants';
 import { ChannelMessage, Notification } from './types';
 // tslint:disable-next-line:variable-name no-require-imports
@@ -11,9 +11,9 @@ const log = new ContainerLogging('redis-avro-messaging', 'AvroNotificationConsum
 
 export default class AvroNotificationConsumer extends EventEmitter {
     private initialized = false;
-    private notificationSchemasWithId: NotificationSchemasWithIds;
+    private notificationSchemasWithId: AvroNotificationSchemasWithIds;
 
-    constructor(private redisPubSub: RedisPubSub, private notificationProtocol: NotificationProtocol, private notificationSchema: Notification) {
+    constructor(private redisPubSub: RedisPubSub, private notificationProtocol: AvroNotificationProtocol, private notificationSchema: Notification) {
         super();
     }
 

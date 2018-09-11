@@ -1,7 +1,7 @@
 import AvroSchemaWithId from './AvroSchemaWithId';
 import { Request } from './types';
 
-export default class RequestSchemasWithIds {
+export default class AvroRequestSchemasWithIds {
     constructor(private _schema: Request, private _request: AvroSchemaWithId, private _response: AvroSchemaWithId) {
     }
 

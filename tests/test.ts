@@ -159,7 +159,7 @@ describe('Test RedisAvroMessaging', () => {
                 resolve({ key, value });
             });
 
-            await producer.produce(notification);
+            await producer.produce(notification.key, notification.value);
         }) as any;
 
         expect(notification.key).toEqual(result.key);
@@ -208,7 +208,7 @@ describe('Test RedisAvroMessaging', () => {
                 resolve({ key, value });
             });
 
-            await producer.produce(notification);
+            await producer.produce(notification.key, notification.value);
         }) as any;
 
         expect(notification.key).toEqual(result.key);
@@ -248,7 +248,7 @@ describe('Test RedisAvroMessaging', () => {
                 resolve({ key, value });
             });
 
-            await producer.produce(notificationOld);
+            await producer.produce(notificationOld.key, notificationOld.value);
         }) as any;
 
         expect(notificationNew.key).toEqual(result.key);
@@ -288,7 +288,7 @@ describe('Test RedisAvroMessaging', () => {
                 resolve({ key, value });
             });
 
-            await producer.produce(notificationNew);
+            await producer.produce(notificationNew.key, notificationNew.value);
         }) as any;
 
         expect(notificationOld.key).toEqual(result.key);

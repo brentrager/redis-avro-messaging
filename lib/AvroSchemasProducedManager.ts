@@ -3,8 +3,8 @@ import { AVRO_SCHEMA_REGISTER_CHANNEL, AVRO_SCHEMA_REGISTER_REQUEST_CHANNEL, NOD
 import RedisPubSub from './RedisPubSub';
 import { ChannelMessage, Notification, Request } from './types';
 import * as _ from 'lodash';
-import NotificationSchemasWithIds from './NotificationSchemasWithIds';
-import RequestSchemasWithIds from './RequestSchemasWithIds';
+import AvroNotificationSchemasWithIds from './AvroNotificationSchemasWithIds';
+import AvroRequestSchemasWithIds from './AvroRequestSchemasWithIds';
 // tslint:disable-next-line:variable-name no-require-imports
 const ContainerLogging = require('@pureconnect/containerlogging');
 
@@ -70,8 +70,8 @@ export default class AvroSchemasProducedManager {
         return existingSchemasWithId.concat(schemasWithId);
     }
 
-    async addNotificationSchema(...schemas: Array<Notification>): Promise<Array<NotificationSchemasWithIds>> {
-        const notificationSchemasWithIds = [] as Array<NotificationSchemasWithIds>;
+    async addNotificationSchema(...schemas: Array<Notification>): Promise<Array<AvroNotificationSchemasWithIds>> {
+        const notificationSchemasWithIds = [] as Array<AvroNotificationSchemasWithIds>;
         const schemaTypes = [] as Array<any>;
         for (const notification of schemas) {
             schemaTypes.push(notification.key);
@@ -82,15 +82,15 @@ export default class AvroSchemasProducedManager {
 
         let index = 0;
         for (const notification of schemas) {
-            notificationSchemasWithIds.push(new NotificationSchemasWithIds(notification, schemasWithIds[index], schemasWithIds[index + 1]));
+            notificationSchemasWithIds.push(new AvroNotificationSchemasWithIds(notification, schemasWithIds[index], schemasWithIds[index + 1]));
             index += 2;
         }
 
         return notificationSchemasWithIds;
     }
 
-    async addRequestSchema(...schemas: Array<Request>): Promise<Array<RequestSchemasWithIds>> {
-        const requestSchemasWithIds = [] as Array<RequestSchemasWithIds>;
+    async addRequestSchema(...schemas: Array<Request>): Promise<Array<AvroRequestSchemasWithIds>> {
+        const requestSchemasWithIds = [] as Array<AvroRequestSchemasWithIds>;
         const schemaTypes = [] as Array<any>;
         for (const request of schemas) {
             schemaTypes.push(request.request);
@@ -101,7 +101,7 @@ export default class AvroSchemasProducedManager {
 
         let index = 0;
         for (const request of schemas) {
-            requestSchemasWithIds.push(new RequestSchemasWithIds(request, schemasWithIds[index], schemasWithIds[index + 1]));
+            requestSchemasWithIds.push(new AvroRequestSchemasWithIds(request, schemasWithIds[index], schemasWithIds[index + 1]));
             index += 2;
         }
 
