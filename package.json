@@ -1,15 +1,15 @@
 {
-  "name": "redis-avro-messaging",
+  "name": "@pureconnect/redis-avro-messaging",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
     "build": "tslint --project tsconfig.json --config tslint.json && tsc",
     "lint": "tslint --project tsconfig.json --config tslint.json",
     "test": "node node_modules/jest/bin/jest"
   },
   "author": "",
-  "license": "ISC",
+  "license": "UNLICENSED",
   "dependencies": {
     "@pureconnect/containerlogging": "^1.0.0",
     "@pureconnect/icavrolib": "^1.0.0",
