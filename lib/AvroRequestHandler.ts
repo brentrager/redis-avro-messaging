@@ -1,11 +1,9 @@
 import { EventEmitter } from 'events';
-import AvroNotificationSchemasWithIds from './AvroNotificationSchemasWithIds';
 import RedisPubSub from './RedisPubSub';
-import { AVRO_REQUEST_CHANNEL, AVRO_RESPONSE_CHANNEL, NODE_ID } from './constants';
-import { ChannelMessage, Request, Message } from './types';
+import { AVRO_REQUEST_CHANNEL, AVRO_RESPONSE_CHANNEL } from './constants';
+import { ChannelMessage, Request } from './types';
 import AvroRequestProtocol from './AvroRequestProtocol';
 import AvroSchemasProducedManager from './AvroSchemasProducedManager';
-import * as uuid from 'uuid';
 import AvroSchemaWithId from './AvroSchemaWithId';
 // tslint:disable-next-line:variable-name no-require-imports
 const icAvroLib = require('@pureconnect/icavrolib');
@@ -69,7 +67,7 @@ export class AvroRequestHandler extends EventEmitter {
 
             this.redisPubSub.on('message', async (channelMessage: ChannelMessage) => {
                 try {
-                    if (channelMessage.channel === AVRO_RESPONSE_CHANNEL) {
+                    if (channelMessage.channel === AVRO_REQUEST_CHANNEL) {
                         const nodeId = channelMessage.message.nodeId;
                         const requestPayload = channelMessage.message.message as Request;
 
@@ -82,7 +80,7 @@ export class AvroRequestHandler extends EventEmitter {
 
                             log.verbose(`Received ${requestPayload.request.length}-byte message on ${this.requestTopic}`);
 
-                            const payloads = await this.requestProtocol.parseMessage(requestPayload.response, nodeId);
+                            const payloads = await this.requestProtocol.parseMessage(requestPayload.request, nodeId);
 
                             // Read the header
                             const header = payloads.headerPayload.deserialize(requestHeader);
@@ -138,7 +136,7 @@ export class AvroRequestHandler extends EventEmitter {
                 }
             });
 
-            await this.redisPubSub.subscribe(AVRO_RESPONSE_CHANNEL);
+            await this.redisPubSub.subscribe(AVRO_REQUEST_CHANNEL);
 
             this.on('request', (payload, respond) => this.handleRequest(payload, respond));
 
@@ -172,8 +170,8 @@ export class AvroRequestHandler extends EventEmitter {
         log.warn(`Request ${requestHeaderData.correlationId} resulted in error:`, error);
         // Build the response payload
         const header = { correlationId: requestHeaderData.correlationId};
-        const messageBufString = this.requestProtocol.buildMessage(this.localSchemasWithIds.responseHeader.schema(),
-            this.localSchemasWithIds.responseHeader.id(), header, this.localSchemasWithIds.responseError.schema(),
+        const messageBufString = this.requestProtocol.buildMessage(icAvroLib.getParsedType(this.localSchemasWithIds.responseHeader.schema()),
+            this.localSchemasWithIds.responseHeader.id(), header, icAvroLib.getParsedType(this.localSchemasWithIds.responseError.schema()),
             this.localSchemasWithIds.responseError.id(), {error: error.message});
 
         log.verbose(`Sending ${messageBufString.length}-byte error message to

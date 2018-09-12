@@ -119,11 +119,11 @@ export default class AvroRequestProtocol {
 
         // Get the schemas and create AvroReceivePayloads
         const headerSchema = await this.avroSchemaCacheManager.getSchema(nodeId, headerSchemaId);
-        const headerType = icAvroLib.getParsedType(headerSchema);
+        const headerType = icAvroLib.getParsedType(headerSchema.schema());
         const headerPayload = new icAvroLib.AvroReceivePayload(headerData, headerType);
 
         const bodySchema = await this.avroSchemaCacheManager.getSchema(nodeId, bodySchemaId);
-        const bodyType = icAvroLib.getParsedType(bodySchema);
+        const bodyType = icAvroLib.getParsedType(bodySchema.schema());
         const bodyPayload = new icAvroLib.AvroReceivePayload(bodyData, bodyType);
 
         return { headerPayload, bodyPayload };

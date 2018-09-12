@@ -1,6 +1,6 @@
 import RedisPubSub from './RedisPubSub';
 import { AVRO_REQUEST_CHANNEL, AVRO_RESPONSE_CHANNEL, NODE_ID } from './constants';
-import { ChannelMessage, Request, Message } from './types';
+import { ChannelMessage, Request } from './types';
 import AvroRequestProtocol from './AvroRequestProtocol';
 import AvroSchemasProducedManager from './AvroSchemasProducedManager';
 import * as uuid from 'uuid';
@@ -100,7 +100,7 @@ export default class AvroRequestClient {
     /**
      * A request timed out - used by sendRequest().
      */
-    requestTimedOut(requestName: string, correlationId: string, timeoutMs: number): void {
+    private requestTimedOut(requestName: string, correlationId: string, timeoutMs: number): void {
         // Find the pending request
         const request = this.pendingRequests.get(correlationId);
         // If the request is already gone, its completion raced with the timeout.  This is fine,
@@ -132,7 +132,7 @@ export default class AvroRequestClient {
      *       server.
      * @return Promise - the response data (deserialized with the response schema given)
      */
-    async sendRequest(requestTopic: string, requestSchemas: Request, body: Request, timeoutMs: number = this.defaultRequestTimeoutMs): Promise<any> {
+    async sendRequest(requestTopic: string, requestSchemas: Request, body: any, timeoutMs: number = this.defaultRequestTimeoutMs): Promise<any> {
         // Get the parsed type for the request schema.
         const requestType = icAvroLib.getParsedType(requestSchemas.request);
         // Generate a correlation ID.
@@ -170,7 +170,7 @@ export default class AvroRequestClient {
                 const messageBufString = this.requestProtocol.buildMessage(icAvroLib.getParsedType(this.localSchemasWithIds.requestHeader.schema()),
                                                             this.localSchemasWithIds.requestHeader.id(),
                                                             header,
-                                                            requestSchema.request().schema(),
+                                                            icAvroLib.getParsedType(requestSchema.request().schema()),
                                                             requestSchema.request().id(),
                                                             body);
 
@@ -193,7 +193,7 @@ export default class AvroRequestClient {
             if (!request) {
                 log.info(`Request for ${requestType.getName()} with ID ${correlationId} failed, but had already timed out.`, error);
 
-                return;
+                throw error;
             }
 
             clearTimeout(timeoutId);
