@@ -5,9 +5,6 @@
   "main": "index.js",
   "scripts": {
     "build": "tslint --project tsconfig.json --config tslint.json && tsc",
-    "start": "node dist/index.js",
-    "tsstart": "ts-node index.ts",
-    "debug": "node --inspect -r ts-node/register src/index.ts",
     "lint": "tslint --project tsconfig.json --config tslint.json",
     "test": "node node_modules/jest/bin/jest"
   },
