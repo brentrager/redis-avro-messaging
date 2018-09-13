@@ -10,7 +10,7 @@
         "allowSyntheticDefaultImports": true,
         "moduleResolution": "node",
         "sourceMap": true,
-        "outDir": "dist",
+        "outDir": "dist"
     },
     "include": [
         "index.ts",
