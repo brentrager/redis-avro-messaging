@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import * as Redis from 'ioredis';
-import { RedisSMQPromise } from 'rsmq-promise';
+import * as RedisSMQPromise from 'rsmq-promise';
 import RedisSMQ from 'rsmq';
 import { ChannelMessage, Message, Notification } from './types';
 import { NODE_ID } from './constants';
@@ -18,7 +18,7 @@ export default class RedisPubSub extends EventEmitter {
      */
     private redisPub: Redis.Redis;
     private redisSub: Redis.Redis;
-    rsmq: RedisSMQPromise;
+    rsmq: RedisSMQPromise.RedisSMQPromise;
 
     constructor(private redisHost: string, private redisPort: number) {
         super();
@@ -26,7 +26,7 @@ export default class RedisPubSub extends EventEmitter {
         try {
             this.redisPub = new Redis(redisPort, redisHost, { connectionName: `${NODE_ID}-PUB`});
             this.redisSub = new Redis(redisPort, redisHost, { autoResubscribe: true, connectionName: `${NODE_ID}-SUB` });
-            this.rsmq = new RedisSMQPromise({ host: redisHost, port: redisPort, options: { connectionName: `${NODE_ID}-RSMQ`}});
+            this.rsmq = new (RedisSMQPromise as any)({ host: redisHost, port: redisPort, options: { connectionName: `${NODE_ID}-RSMQ`}});
         } catch (error) {
             log.error(`Unable to connect to Redis URL: '${redisHost}:${redisPort}'.`);
             throw error;

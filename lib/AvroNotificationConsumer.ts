@@ -42,6 +42,8 @@ export default class AvroNotificationConsumer extends EventEmitter {
 
         if (!this.initialized) {
             if (this.useQueue) {
+                await this.redisPubSub.createQueue(this.queueName);
+
                 // First, if we are using the queue, get all the messages already in the queue and try to
                 // read them.
                 //
@@ -91,7 +93,6 @@ export default class AvroNotificationConsumer extends EventEmitter {
             });
 
             await this.redisPubSub.subscribe(AVRO_NOTIFICATION_CHANNEL);
-            await this.redisPubSub.createQueue(this.queueName);
 
             this.initialized = true;
         }

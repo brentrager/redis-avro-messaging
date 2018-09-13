@@ -75,4 +75,4 @@ class RedisSMQPromise {
 }
 
 
-module.exports = { RedisSMQPromise };
+module.exports = RedisSMQPromise ;
