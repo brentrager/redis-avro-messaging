@@ -39,9 +39,9 @@ export default class AvroNotificationProducer {
             value: valuePayload
         };
 
-        await this.redisPubSub.publish(AVRO_NOTIFICATION_CHANNEL, notificationPayload);
         if (this.useQueue) {
             await this.redisPubSub.sendQueueMessage(this.queueName, notificationPayload);
         }
+        await this.redisPubSub.publish(AVRO_NOTIFICATION_CHANNEL, notificationPayload);
     }
 }
