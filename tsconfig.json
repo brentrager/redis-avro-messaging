@@ -1,6 +1,8 @@
 {
     "compilerOptions": {
         "target": "es6",
+        "module": "commonjs",
+        "declaration": true,
         "noImplicitAny": true,
         "noUnusedLocals": false,
         "strictNullChecks": true,
@@ -12,6 +14,7 @@
     },
     "include": [
         "index.ts",
-        "lib/**/*"
+        "lib/**/*",
+        "schemas/*.json"
     ]
 }
