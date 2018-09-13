@@ -62,10 +62,10 @@ export default class RedisPubSub extends EventEmitter {
         }
     }
 
-    async publish(channel: string, message: any): Promise<void> {
+    async publish(channel: string, message: any, nodeId = NODE_ID): Promise<void> {
         try {
             const nodeMessage: Message = {
-                nodeId: NODE_ID,
+                nodeId,
                 message
             };
             await this.redisPub.publish(channel, JSON.stringify(nodeMessage));

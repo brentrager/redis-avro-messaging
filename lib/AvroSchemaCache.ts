@@ -28,4 +28,16 @@ export default class AvroSchemaCache {
 
         return result;
     }
+
+    getSchemas(nodeId: string): Array<any> {
+        let result: Array<any> = [];
+        const schemaMap = this.cache.get(nodeId);
+        if (schemaMap) {
+            result = Array.from(schemaMap.values()).sort((a, b) => {
+                return a.id() - b.id();
+            }).map(x => x.schema());
+        }
+
+        return result;
+    }
 }
