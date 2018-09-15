@@ -25,7 +25,7 @@ export default class RedisPubSub extends EventEmitter {
 
         try {
             this.redisPub = new Redis(redisPort, redisHost, { connectionName: `${NODE_ID}-PUB`});
-            this.redisSub = new Redis(redisPort, redisHost, { autoResubscribe: true, connectionName: `${NODE_ID}-SUB` });
+            this.redisSub = new Redis(redisPort, redisHost, { autoResubscribe: true );
             this.rsmq = new (RedisSMQPromise as any)({ host: redisHost, port: redisPort, options: { connectionName: `${NODE_ID}-RSMQ`}});
         } catch (error) {
             log.error(`Unable to connect to Redis URL: '${redisHost}:${redisPort}'.`);
