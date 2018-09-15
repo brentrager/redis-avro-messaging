@@ -11,6 +11,12 @@ const log = new ContainerLogging('redis-avro-messaging', 'AvroNotificationConsum
 export default class AvroNotificationConsumer extends EventEmitter {
     private initialized = false;
     private queueName: string;
+    private paused = false;
+    private queuedNotifications: Array<Notification> = [];
+
+    isPaused(): boolean {
+        return this.paused;
+    }
 
     constructor(private redisPubSub: RedisPubSub, private notificationProtocol: AvroNotificationProtocol,
                 private notificationSchema: Notification, private useQueue: boolean = true) {
@@ -37,8 +43,31 @@ export default class AvroNotificationConsumer extends EventEmitter {
         return notification;
     }
 
-    async initialize(): Promise<Array<Notification>> {
+    private async getCatchUpNotifications(): Promise<Array<Notification>> {
         const notifications: Array<Notification> = [];
+        const messages = await this.redisPubSub.catchUpQueueMessages(this.queueName);
+
+        for (const message of messages) {
+            try {
+                const notification = await this.processNotificationMessage(message);
+                if (notification) {
+                    notifications.push(notification);
+                }
+            } catch (error) {
+                log.error(`Error reading message from node ${message.nodeId}`);
+            }
+        }
+
+        return notifications;
+    }
+
+    private sendCatchUpNotifications(notifications: Array<Notification>): void {
+        for (const notification of notifications) {
+            this.emit('notification', notification.key, notification.value);
+        }
+    }
+
+    async initialize(): Promise<void> {
 
         if (!this.initialized) {
             if (this.useQueue) {
@@ -48,16 +77,23 @@ export default class AvroNotificationConsumer extends EventEmitter {
                 // read them.
                 //
                 // After this, we will read from the queue when we receive a published notification.
-                const messages = await this.redisPubSub.catchUpQueueMessages(this.queueName);
-                for (const message of messages) {
-                    try {
-                        const notification = await this.processNotificationMessage(message);
-                        if (notification) {
-                            notifications.push(notification);
-                        }
-                    } catch (error) {
-                        log.error(`Error reading message from node ${message.nodeId}`);
-                    }
+                const notifications = await this.getCatchUpNotifications();
+
+                if (notifications.length) {
+                    const catchUpPromise = new Promise<void>((resolve) => {
+                        const interval = setInterval(() => {
+                            if (this.listenerCount('notification')) {
+                                this.sendCatchUpNotifications(notifications);
+                                clearInterval(interval);
+
+                                return resolve();
+                            }
+                        }, 100);
+                    });
+
+                    catchUpPromise.catch(error => {
+                        log.error(`Error catching up with queue messages for notification ${this.queueName}: ${error}`);
+                    });
                 }
             }
 
@@ -70,7 +106,7 @@ export default class AvroNotificationConsumer extends EventEmitter {
                             let notification: Notification | undefined;
 
                             // If we are using the queue, read the message from the queue.
-                            if (this.useQueue) {
+                            if (!this.paused && this.useQueue) {
                                 const message = await this.redisPubSub.popQueueMessage(this.queueName);
                                 if (message) {
                                     notification = await this.processNotificationMessage(message);
@@ -83,7 +119,13 @@ export default class AvroNotificationConsumer extends EventEmitter {
                             }
 
                             if (notification) {
-                                this.emit('notification', notification.key, notification.value);
+                                if (!this.paused) {
+                                    this.emit('notification', notification.key, notification.value);
+                                } else {
+                                    if (!this.useQueue) {
+                                        this.queuedNotifications.push(notification);
+                                    }
+                                }
                             }
                         }
                     }
@@ -96,7 +138,37 @@ export default class AvroNotificationConsumer extends EventEmitter {
 
             this.initialized = true;
         }
+    }
 
-        return notifications;
+    /**
+     * When paused, any notifications will be queued.
+     */
+    pause(): void {
+        this.paused = true;
+    }
+
+    /**
+     * When resumed, if any notifications were queued while paused, they will be emitted.
+     */
+    resume(): void {
+            const resumePromise = new Promise(async (resolve) => {
+                if (this.paused) {
+                    if (this.useQueue) {
+                        const notifications = await this.getCatchUpNotifications();
+                        this.sendCatchUpNotifications(notifications);
+                    } else {
+                        this.sendCatchUpNotifications(this.queuedNotifications);
+                        this.queuedNotifications = [];
+                    }
+                }
+
+                this.paused = false;
+
+                return resolve();
+            });
+
+            resumePromise.catch((error) => {
+                log.error(`Error resuming for notification ${this.queueName}`);
+            });
     }
 }
